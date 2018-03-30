@@ -1,5 +1,6 @@
-// use backing::Backing;
+use backing::Backing;
 use config::{Config, TrackType};
+use ears::State;
 use errors::*;
 use metronome::Metronome;
 use std::fmt;
@@ -10,26 +11,21 @@ use termion::raw::{IntoRawMode, RawTerminal};
 pub struct Tracks {
     tracks: Vec<Track>,
     index: usize,
-    state: TrackState,
     stdout: RawTerminal<Stdout>,
 }
 
 pub enum Track {
-    // Backing(Backing),
-    Backing,
+    Backing(Backing),
     Metronome(Metronome),
 }
 
-pub enum TrackState {
-    Play,
-    Pause,
-    Stop,
-}
-
 pub trait Player {
-    fn play(&self) -> Result<()>;
-    fn pause(&self) -> Result<()>;
-    fn stop(&self) -> Result<()>;
+    fn name(&self) -> &str;
+    fn play(&mut self) -> Result<()>;
+    fn pause(&mut self) -> Result<()>;
+    fn stop(&mut self) -> Result<()>;
+    fn get_state(&self) -> State;
+    fn autostart(&self) -> bool;
 }
 
 impl Tracks {
@@ -38,11 +34,15 @@ impl Tracks {
 
         for track in config.tracks {
             let t = match track.track_type {
-                TrackType::Backing => unimplemented!(),
+                TrackType::Backing => {
+                    let backing = Backing::new(&track.name, &track.path.expect("Track path missing"), track.autostart.unwrap_or(false))?;
+                    Track::Backing(backing)
+                },
                 TrackType::Metronome => {
                     let tempo = track.tempo.expect("Tempo missing");
                     let signature = track.signature.expect("Time signature missing");
-                    let metronome = Metronome::new(tempo, &signature)?;
+                    let met = config.metronome.as_ref().expect("Metronome config missing");
+                    let metronome = Metronome::new(&track.name, tempo, &signature, track.autostart.unwrap_or(false), &met.accent, &met.beat)?;
                     Track::Metronome(metronome)
                 }
             };
@@ -52,7 +52,6 @@ impl Tracks {
         Ok(Tracks {
             tracks: tracks,
             index: 0,
-            state: TrackState::Stop,
             stdout: stdout().into_raw_mode()?,
         })
     }
@@ -78,45 +77,63 @@ impl Tracks {
     }
 
     pub fn play(&mut self) -> Result<()> {
-        self.state = TrackState::Play;
+        let r = self.active_track().play();
         self.announce_track();
-        self.active_track().play()
+        r
     }
 
     pub fn pause(&mut self) -> Result<()> {
-        self.state = TrackState::Pause;
+        let r = self.active_track().pause();
         self.announce_track();
-        self.active_track().pause()
+        r
     }
 
-    fn stop(&mut self) -> Result<()> {
-        self.state = TrackState::Stop;
+    pub fn stop(&mut self) -> Result<()> {
+        let r = self.active_track().stop();
         self.announce_track();
-        self.active_track().stop()
+        r
     }
 
     pub fn play_pause(&mut self) -> Result<()> {
-        match self.state {
-            TrackState::Play => self.pause(),
-            TrackState::Pause => self.play(),
-            TrackState::Stop => self.play(),
+        match self.active_track().get_state() {
+            State::Initial => self.play(),
+            State::Playing => self.pause(),
+            State::Paused => self.play(),
+            State::Stopped => self.play(),
         }
     }
 
-    fn active_track(&self) -> &Track {
-        self.tracks.get(self.index)
+    fn active_track(&mut self) -> &mut Track {
+        self.tracks.get_mut(self.index)
             .expect("index is outside array bounds!")
     }
 
     pub fn announce_track(&mut self) {
-        let active = format!("{}", self.active_track());
+        let (name, track, state) = {
+            let active = self.active_track();
+            (
+                active.name().to_owned(),
+                format!("{}", active),
+                match active.get_state() {
+                    State::Initial => "Stopped",
+                    State::Playing => "Playing",
+                    State::Paused => "Paused",
+                    State::Stopped => "Stopped",
+                }
+            )
+        };
 
-        write!(self.stdout, "{}{}Track {}: {} [{}]{}",
+        write!(self.stdout, "{}{}{}Track {} ({}){}: {} [{}{}{}]{}",
             termion::clear::All,
             termion::cursor::Goto(1, 1),
+            termion::color::Fg(termion::color::Green),
             self.index + 1,
-            active,
-            self.state,
+            name,
+            termion::color::Fg(termion::color::Reset),
+            track,
+            termion::color::Fg(termion::color::Red),
+            state,
+            termion::color::Fg(termion::color::Reset),
             termion::cursor::Hide).unwrap();
 
         self.stdout.flush().unwrap();
@@ -133,24 +150,44 @@ impl Drop for Tracks {
 }
 
 impl Player for Track {
-    fn play(&self) -> Result<()> {
+    fn name(&self) -> &str {
         match *self {
-            Track::Backing => unimplemented!(),
-            Track::Metronome(ref m) => m.play(),
+            Track::Backing(ref b) => b.name(),
+            Track::Metronome(ref m) => m.name(),
+        }
+    }
+    fn play(&mut self) -> Result<()> {
+        match *self {
+            Track::Backing(ref mut b) => b.play(),
+            Track::Metronome(ref mut m) => m.play(),
         }
     }
 
-    fn pause(&self) -> Result<()> {
+    fn pause(&mut self) -> Result<()> {
         match *self {
-            Track::Backing => unimplemented!(),
-            Track::Metronome(ref m) => m.pause(),
+            Track::Backing(ref mut b) => b.pause(),
+            Track::Metronome(ref mut m) => m.pause(),
         }
     }
 
-    fn stop(&self) -> Result<()> {
+    fn stop(&mut self) -> Result<()> {
         match *self {
-            Track::Backing => unimplemented!(),
-            Track::Metronome(ref m) => m.stop(),
+            Track::Backing(ref mut b) => b.stop(),
+            Track::Metronome(ref mut m) => m.stop(),
+        }
+    }
+
+    fn get_state(&self) -> State {
+        match *self {
+            Track::Backing(ref b) => b.get_state(),
+            Track::Metronome(ref m) => m.get_state(),
+        }
+    }
+
+    fn autostart(&self) -> bool {
+        match *self {
+            Track::Backing(ref b) => b.autostart(),
+            Track::Metronome(ref m) => m.autostart(),
         }
     }
 }
@@ -158,18 +195,8 @@ impl Player for Track {
 impl fmt::Display for Track {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Track::Backing => write!(f, "Backing"),
+            Track::Backing(ref b) => write!(f, "{}", b),
             Track::Metronome(ref m) => write!(f, "{}", m),
-        }
-    }
-}
-
-impl fmt::Display for TrackState {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            TrackState::Play => write!(f, "Playing"),
-            TrackState::Pause => write!(f, "Paused"),
-            TrackState::Stop => write!(f, "Stopped"),
         }
     }
 }

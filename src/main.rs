@@ -46,6 +46,7 @@ quick_main!(|| -> Result<()> {
         match c {
             Ok(Key::Left) => tracks.previous()?,
             Ok(Key::Right) => tracks.next()?,
+            Ok(Key::Esc) => tracks.stop()?,
             Ok(Key::Char(c)) if c == ' ' => tracks.play_pause()?,
             Ok(Key::Ctrl(c)) if c == 'c' => break,
             _ => (),

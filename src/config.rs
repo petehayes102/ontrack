@@ -1,6 +1,7 @@
 #[derive(Deserialize)]
 pub struct Config {
-    pub tracks: Vec<ConfigTrack>
+    pub tracks: Vec<ConfigTrack>,
+    pub metronome: Option<ConfigMetronome>,
 }
 
 #[derive(Deserialize)]
@@ -10,6 +11,15 @@ pub struct ConfigTrack {
     pub name: String,
     pub tempo: Option<u16>,
     pub signature: Option<String>,
+    pub path: Option<String>,
+    pub autostart: Option<bool>,
+    pub delay: Option<u16>,
+}
+
+#[derive(Deserialize)]
+pub struct ConfigMetronome {
+    pub accent: String,
+    pub beat: String,
 }
 
 #[derive(Deserialize)]

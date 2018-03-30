@@ -5,7 +5,7 @@
 // https://github.com/alamminsalo/rust-metronome?files=1
 //
 
-use ears::{Sound, AudioController};
+use ears::{AudioController, Sound, State};
 use errors::*;
 use std::fmt;
 use std::sync::mpsc::{channel, Sender, TryRecvError};
@@ -13,18 +13,21 @@ use std::thread::{JoinHandle, sleep, spawn};
 use std::time::{Instant, Duration};
 use track::Player;
 
-const ACCENT_PATH: &str = "./accent.wav";
-const BEAT_PATH: &str = "./beat.wav";
-
 pub struct Metronome {
+    name: String,
     tempo: u16,
     signature: String,
+    state: State,
+    autostart: bool,
     tx: Sender<bool>,
     _handle: JoinHandle<()>,
 }
 
 impl Metronome {
-    pub fn new(tempo: u16, signature: &str) -> Result<Metronome> {
+    pub fn new(name: &str, tempo: u16, signature: &str, autostart: bool, accent_path: &str, beat_path: &str) -> Result<Metronome> {
+        let accent_path = accent_path.to_owned();
+        let beat_path = beat_path.to_owned();
+
         // Parse time signature
         let sig_pair: Vec<&str> = signature.split_terminator('/').collect();
         let sig: (u8, u8) = (sig_pair[0].parse().unwrap(), sig_pair[1].parse().unwrap());
@@ -32,8 +35,8 @@ impl Metronome {
         // Spawn player thread
         let (tx, rx) = channel();
         let handle = spawn(move || {
-            let mut snd_accent = Sound::new(&ACCENT_PATH).expect("Could not find metronome accent sound");
-            let mut snd_beat = Sound::new(&BEAT_PATH).expect("Could not find metronome accent sound");
+            let mut snd_accent = Sound::new(&accent_path).expect("Could not find metronome accent sound");
+            let mut snd_beat = Sound::new(&beat_path).expect("Could not find metronome accent sound");
 
             loop {
                 match rx.recv() {
@@ -73,8 +76,11 @@ impl Metronome {
         });
 
         Ok(Metronome {
+            name: name.into(),
             tempo: tempo,
             signature: signature.into(),
+            state: State::Initial,
+            autostart: autostart,
             tx: tx,
             _handle: handle
         })
@@ -82,16 +88,30 @@ impl Metronome {
 }
 
 impl Player for Metronome {
-    fn play(&self) -> Result<()> {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn play(&mut self) -> Result<()> {
+        self.state = State::Playing;
         Ok(self.tx.send(true)?)
     }
 
-    fn pause(&self) -> Result<()> {
+    fn pause(&mut self) -> Result<()> {;
         self.stop()
     }
 
-    fn stop(&self) -> Result<()> {
+    fn stop(&mut self) -> Result<()> {
+        self.state = State::Stopped;
         Ok(self.tx.send(false)?)
+    }
+
+    fn get_state(&self) -> State {
+        self.state
+    }
+
+    fn autostart(&self) -> bool {
+        self.autostart
     }
 }
 
