@@ -13,7 +13,7 @@ pub struct ConfigTrack {
     pub signature: Option<String>,
     pub path: Option<String>,
     pub autostart: Option<bool>,
-    pub delay: Option<u16>,
+    pub delay: Option<u64>,
 }
 
 #[derive(Deserialize)]

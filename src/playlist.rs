@@ -33,7 +33,7 @@ impl Playlist {
         for track in config.tracks {
             let t = match track.track_type {
                 TrackType::Backing => {
-                    let mut backing = Backing::new(&track.name, &track.path.expect("Track path missing"), playlist.clone())?;
+                    let mut backing = Backing::new(&track.name, &track.path.expect("Track path missing"), track.delay.unwrap_or(0), playlist.clone())?;
                     backing.set_autostart(track.autostart.unwrap_or(false));
                     Track::Backing(backing)
                 },
@@ -41,7 +41,7 @@ impl Playlist {
                     let tempo = track.tempo.expect("Tempo missing");
                     let signature = track.signature.expect("Time signature missing");
                     let met = config.metronome.as_ref().expect("Metronome config missing");
-                    let mut metronome = Metronome::new(&track.name, tempo, &signature, &met.accent, &met.beat, playlist.clone())?;
+                    let mut metronome = Metronome::new(&track.name, tempo, &signature, track.delay.unwrap_or(0), &met.accent, &met.beat, playlist.clone())?;
                     metronome.set_autostart(track.autostart.unwrap_or(false));
                     Track::Metronome(metronome)
                 }

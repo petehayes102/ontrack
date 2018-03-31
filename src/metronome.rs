@@ -25,7 +25,7 @@ pub struct Metronome {
 }
 
 impl Metronome {
-    pub fn new(name: &str, tempo: u16, signature: &str, accent_path: &str, beat_path: &str, playlist: Playlist) -> Result<Metronome> {
+    pub fn new(name: &str, tempo: u16, signature: &str, delay: u64, accent_path: &str, beat_path: &str, playlist: Playlist) -> Result<Metronome> {
         let accent_path = accent_path.to_owned();
         let beat_path = beat_path.to_owned();
 
@@ -42,6 +42,8 @@ impl Metronome {
             loop {
                 match rx.recv() {
                     Ok(b) if b == true => {
+                        sleep(Duration::from_secs(delay));
+
                         // Interval between beats
                         let interval = interval(tempo);
 

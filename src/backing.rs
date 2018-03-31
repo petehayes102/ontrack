@@ -3,7 +3,7 @@ use errors::*;
 use playlist::Playlist;
 use std::fmt;
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
-use std::thread::{JoinHandle, spawn};
+use std::thread::{JoinHandle, sleep, spawn};
 use std::time::Duration;
 use track::Player;
 
@@ -17,7 +17,7 @@ pub struct Backing {
 }
 
 impl Backing {
-    pub fn new(name: &str, path: &str, playlist: Playlist) -> Result<Backing> {
+    pub fn new(name: &str, path: &str, delay: u64, playlist: Playlist) -> Result<Backing> {
         let mut music = Music::new(&path)?;
         let (tx, rx) = channel();
         let (state_tx, state_rx) = channel();
@@ -32,6 +32,7 @@ impl Backing {
                             music.stop()
                         },
                         1 => {
+                            sleep(Duration::from_secs(delay));
                             started = true;
                             music.play();
                         },
