@@ -9,6 +9,7 @@ mod backing;
 mod config;
 mod errors;
 mod metronome;
+mod playlist;
 mod track;
 
 use config::Config;
@@ -19,14 +20,14 @@ use std::io::{Read, stdin};
 use std::process::exit;
 use termion::event::Key;
 use termion::input::TermRead;
-use track::Tracks;
+use playlist::Playlist;
 
 quick_main!(|| -> Result<()> {
     let mut args = args();
     let path = match args.nth(1) {
         Some(p) => p,
         None => {
-            println!("Usage: ontrack <config_path>");
+            println!("Usage: ontrack <playlist_path>");
             exit(1);
         },
     };
@@ -37,17 +38,16 @@ quick_main!(|| -> Result<()> {
     fh.read_to_string(&mut toml)?;
     let config: Config = toml::from_str(&toml)?;
 
-    // Load Tracks
-    let mut tracks = Tracks::from_config(config)?;
-    tracks.announce_track();
+    // Load Playlist
+    let (playlist, _handle) = Playlist::from_config(config)?;
 
     let stdin = stdin();
     for c in stdin.keys() {
         match c {
-            Ok(Key::Left) => tracks.previous()?,
-            Ok(Key::Right) => tracks.next()?,
-            Ok(Key::Esc) => tracks.stop()?,
-            Ok(Key::Char(c)) if c == ' ' => tracks.play_pause()?,
+            Ok(Key::Left) => playlist.previous()?,
+            Ok(Key::Right) => playlist.next()?,
+            Ok(Key::Esc) => playlist.stop()?,
+            Ok(Key::Char(c)) if c == ' ' => playlist.play_pause()?,
             Ok(Key::Ctrl(c)) if c == 'c' => break,
             _ => (),
         }

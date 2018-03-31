@@ -11,7 +11,9 @@ use toml::de;
 error_chain! {
     foreign_links {
         Io(io::Error);
-        SendError(mpsc::SendError<bool>);
+        RecvError(mpsc::RecvError);
+        SendBoolError(mpsc::SendError<bool>);
+        SendU8Error(mpsc::SendError<u8>);
         TomlDeserialize(de::Error);
     }
 }

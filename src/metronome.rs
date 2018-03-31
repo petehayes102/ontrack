@@ -7,6 +7,7 @@
 
 use ears::{AudioController, Sound, State};
 use errors::*;
+use playlist::Playlist;
 use std::fmt;
 use std::sync::mpsc::{channel, Sender, TryRecvError};
 use std::thread::{JoinHandle, sleep, spawn};
@@ -24,7 +25,7 @@ pub struct Metronome {
 }
 
 impl Metronome {
-    pub fn new(name: &str, tempo: u16, signature: &str, autostart: bool, accent_path: &str, beat_path: &str) -> Result<Metronome> {
+    pub fn new(name: &str, tempo: u16, signature: &str, accent_path: &str, beat_path: &str, playlist: Playlist) -> Result<Metronome> {
         let accent_path = accent_path.to_owned();
         let beat_path = beat_path.to_owned();
 
@@ -49,7 +50,11 @@ impl Metronome {
                             let t = Instant::now();
 
                             match rx.try_recv() {
-                                Ok(_) | Err(TryRecvError::Disconnected) => break,
+                                Ok(_) => {
+                                    playlist.finished().unwrap();
+                                    break;
+                                },
+                                Err(TryRecvError::Disconnected) => break,
                                 Err(TryRecvError::Empty) => ()
                             }
 
@@ -80,7 +85,7 @@ impl Metronome {
             tempo: tempo,
             signature: signature.into(),
             state: State::Initial,
-            autostart: autostart,
+            autostart: false,
             tx: tx,
             _handle: handle
         })
@@ -106,12 +111,16 @@ impl Player for Metronome {
         Ok(self.tx.send(false)?)
     }
 
-    fn get_state(&self) -> State {
-        self.state
+    fn get_state(&self) -> Result<State> {
+        Ok(self.state)
     }
 
     fn autostart(&self) -> bool {
         self.autostart
+    }
+
+    fn set_autostart(&mut self, autostart: bool) {
+        self.autostart = autostart;
     }
 }
 
